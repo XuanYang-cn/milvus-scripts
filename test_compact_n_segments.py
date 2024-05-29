@@ -102,11 +102,11 @@ def test_case_generate_20_segments_del_all():
     delete_all(name)
 
 def test_case_generate_20_segments_no_del():
-    name = "test_l0_compact_20_seg_clean_all"
+    name = "test_l0_compact_20_seg"
     generate_n_segments(name, 20)
-    delete_all(name)
 
 
 if __name__ == "__main__":
     #  test_case_generate_20_segments_del_20perc()
     test_case_generate_20_segments_del_all()
+    #  test_case_generate_20_segments_no_del()
