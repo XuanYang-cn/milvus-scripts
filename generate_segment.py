@@ -59,6 +59,36 @@ def generate_segments(dist: SegmentDistribution):
 
     return pks
 
+def stream_insert(c: Union[Collection, Partition], schema: pymilvus.CollectionSchema, size: int) -> list:
+    max_size = 5 * 1024 * 1024
+    total_count = 0
+    pks = []
+
+    if size > max_size:
+        batch =  size // (5 * 1024 * 1024)
+        tail = size - batch * max_size
+
+        for i in range(batch):
+            count = estimate_count_by_size(max_size, schema)
+            data = gen_data_by_schema(schema, count)
+            rt = c.insert(data)
+            print(f"inserted {max_size * (i+1)/1024/1024:.2f}/{size/1024/1024:.2f}MB entities in batch 5MB, nun rows: {count}")
+            pks.extend(rt.primary_keys)
+            total_count += count
+    else:
+        tail = size
+
+    if tail > 0:
+        count = estimate_count_by_size(tail, schema)
+        data = gen_data_by_schema(schema, count)
+        c.insert(data)
+        print(f"inserted entities size: {tail}Bytes, {tail/1024/1024}MB, nun rows: {count}")
+        pks.extend(rt.primary_keys)
+        total_count += count
+
+    print(f"total segment num rows: {total_count}, size: {size}B, {size/1024/1024}MB")
+    return pks
+
 
 def generate_one_segment(c: Union[Collection, Partition], schema: pymilvus.CollectionSchema, size: int) -> list:
     max_size = 5 * 1024 * 1024
@@ -109,6 +139,24 @@ def estimate_count_by_size(size: int, schema: pymilvus.CollectionSchema) -> int:
 
     return int(size / size_per_row)
 
+def estimate_size_by_count(count: int, schema: pymilvus.CollectionSchema) -> int:
+    size_per_row = 0
+    for fs in schema.fields:
+        if fs.dtype == DataType.INT64:
+            size_per_row += 8
+        elif fs.dtype == DataType.VARCHAR:
+            size_per_row += fs.max_length
+        elif fs.dtype == DataType.FLOAT_VECTOR:
+            size_per_row += fs.dim * 4
+        elif fs.dtype == DataType.DOUBLE:
+            size_per_row += 8
+        else:
+            msg = f"Unsupported data type: {fs.dtype.name}, please impl in generate_segment.py yourself"
+            raise ValueError(msg)
+    return int(count * size_per_row)
+
+
+pre_sur = "{} Vector databases are specialized systems designed for managing and retrieving unstructured data through vector embeddings and numerical representations that capture the essence of data items like images, audio, videos"
 
 
 def gen_data_by_schema(schema: pymilvus.CollectionSchema, count: int) -> list:
@@ -125,7 +173,7 @@ def gen_data_by_schema(schema: pymilvus.CollectionSchema, count: int) -> list:
             if fs.is_primary and not fs.auto_id:
                 data.append([str(uuid.uuid4()) for _ in range(count)])
             else:
-                data.append([str(i) for i in range(count)])
+                data.append([pre_sur.format(str(uuid.uuid4())) for i in range(count)])
 
         elif fs.dtype == DataType.FLOAT_VECTOR:
             data.append(rng.random((count, fs.dim)))

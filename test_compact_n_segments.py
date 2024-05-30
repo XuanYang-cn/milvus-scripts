@@ -1,5 +1,4 @@
 from pymilvus import connections, Collection
-import os
 from  pathlib import Path
 
 # local

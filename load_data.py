@@ -31,7 +31,7 @@ def delete(name: str, expr: str):
     c.flush
 
 
-def prepare_collection(name: str, dim: int, recreate_if_exist: bool=False):
+def prepare_collection(name: str, dim: int, recreate_if_exist: bool=False, schema: CollectionSchema=None):
     connections.connect()
 
     def create():
@@ -41,8 +41,8 @@ def prepare_collection(name: str, dim: int, recreate_if_exist: bool=False):
             FieldSchema(name="embeddings", dtype=DataType.FLOAT_VECTOR, dim=dim)
         ]
 
-        schema = CollectionSchema(fields)
-        Collection(name, schema)
+        local_schema = CollectionSchema(fields) if schema is None else schema
+        Collection(name, local_schema)
 
     if not utility.has_collection(name):
         create()
