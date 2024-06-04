@@ -7,7 +7,6 @@ from generate_segment import generate_segments, SegmentDistribution, Unit
 
 
 def generate_n_segments(name: str, n: int = 20):
-    connections.connect()
     prepare_collection(name, 768, False)
     c = Collection(name)
     if not c.has_index():
@@ -22,11 +21,16 @@ def generate_n_segments(name: str, n: int = 20):
     return generate_segments(dist)
 
 
-def delete_n_percent(name: str, all_pks: list[list] = None, n: int = 20):
+def delete_n_percent(name: str, all_pks: list[list] = None, n: int = 20, flush: bool = True):
+
+    if n == 0:
+        print("No deletion, return...")
+        return 0
+
     import numpy as np
-    connections.connect()
     c = Collection(name)
     c.load()
+    delete_count = 0
 
     if not isinstance(all_pks, list):
         raise TypeError(f"pks should be a list, but got {type(all_pks)}")
@@ -34,18 +38,22 @@ def delete_n_percent(name: str, all_pks: list[list] = None, n: int = 20):
     for i, pks in enumerate(all_pks):
         sample_pks = np.random.choice(pks, size=int(n*0.01*len(pks)), replace=False)
         expr = f"pk in {sample_pks.tolist()}"
-        c.delete(expr)
-        print(f"sampled pk counts: {len(sample_pks)} and delete done")
+        rt = c.delete(expr)
+        delete_count += rt.delete_count
+
+    print(f"PK count = {sum(len(pks) for pks in all_pks)}, Delete percent = {n}%, Delete count = {delete_count}")
+    if flush is True:
+        print("Delete done and flush done")
         c.flush()
+    return delete_count
 
 
 def delete_n_percent_to_files(name: str, all_pks: list[list] = None, n: int = 20):
     import numpy as np
-    connections.connect()
     c = Collection(name)
     c.load()
 
-    if not isinstance(all_pks, list):
+    if not isinstance(all_pks, list) or not isinstance(all_pks[0], list):
         raise TypeError(f"pks should be a list, but got {type(all_pks)}")
 
     for i, pks in enumerate(all_pks):
@@ -56,7 +64,6 @@ def delete_n_percent_to_files(name: str, all_pks: list[list] = None, n: int = 20
 
 
 def delete_all(name):
-    connections.connect()
     c = Collection(name)
     c.load()
     ret = c.delete(f"pk > 1")
@@ -65,7 +72,6 @@ def delete_all(name):
 
 
 def delete_by_files(name: str):
-    connections.connect()
     c = Collection(name)
     c.load()
     del_count = 0
@@ -106,6 +112,7 @@ def test_case_generate_20_segments_no_del():
 
 
 if __name__ == "__main__":
+    connections.connect()
     #  test_case_generate_20_segments_del_20perc()
     test_case_generate_20_segments_del_all()
     #  test_case_generate_20_segments_no_del()

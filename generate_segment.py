@@ -15,7 +15,10 @@ from pymilvus import Collection, connections, utility, DataType, Partition
 import pymilvus
 import numpy as np
 import uuid
+import math
 from enum import Enum
+
+from tqdm import tqdm
 
 
 class Unit(str, Enum):
@@ -59,34 +62,29 @@ def generate_segments(dist: SegmentDistribution):
 
     return pks
 
-def stream_insert(c: Union[Collection, Partition], schema: pymilvus.CollectionSchema, size: int) -> list:
+def stream_insert(c: Union[Collection, Partition], schema: pymilvus.CollectionSchema, size: int) -> list[list]:
     max_size = 5 * 1024 * 1024
     total_count = 0
     pks = []
 
+    print(f"Try to load {size / 1024 / 1024:.2f}MB data in batch 5MB")
     if size > max_size:
-        batch =  size // (5 * 1024 * 1024)
-        tail = size - batch * max_size
-
-        for i in range(batch):
-            count = estimate_count_by_size(max_size, schema)
-            data = gen_data_by_schema(schema, count)
-            rt = c.insert(data)
-            print(f"inserted {max_size * (i+1)/1024/1024:.2f}/{size/1024/1024:.2f}MB entities in batch 5MB, nun rows: {count}")
-            pks.extend(rt.primary_keys)
-            total_count += count
+        batch =  math.ceil(size / (5 * 1024 * 1024))
+        tail = size - (batch-1) * max_size
     else:
+        batch = 1
         tail = size
 
-    if tail > 0:
-        count = estimate_count_by_size(tail, schema)
+    for i in tqdm(range(batch)):
+        batch_size = max_size if i < batch - 1 else tail
+
+        count = estimate_count_by_size(batch_size, schema)
         data = gen_data_by_schema(schema, count)
-        c.insert(data)
-        print(f"inserted entities size: {tail}Bytes, {tail/1024/1024}MB, nun rows: {count}")
-        pks.extend(rt.primary_keys)
+        rt = c.insert(data)
+        pks.append(rt.primary_keys)
         total_count += count
 
-    print(f"total segment num rows: {total_count}, size: {size}B, {size/1024/1024}MB")
+    print(f"Loaded num rows: {total_count}, size: {size:.2f}B, {size/1024/1024:.2f}MB")
     return pks
 
 
