@@ -31,7 +31,7 @@ def delete(name: str, expr: str):
     c.flush
 
 
-def prepare_collection(name: str, dim: int, recreate_if_exist: bool=False, schema: CollectionSchema=None):
+def prepare_collection(name: str, dim: int, recreate_if_exist: bool=False, schema: CollectionSchema=None, **kwargs):
     connections.connect()
 
     def create():
@@ -42,7 +42,7 @@ def prepare_collection(name: str, dim: int, recreate_if_exist: bool=False, schem
         ]
 
         local_schema = CollectionSchema(fields) if schema is None else schema
-        Collection(name, local_schema)
+        Collection(name, local_schema, **kwargs)
 
     if not utility.has_collection(name):
         create()

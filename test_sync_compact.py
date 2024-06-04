@@ -32,7 +32,7 @@ def load_by_count_delete_n_per(name: str, count: int = 10_000_000, delete_propor
     ]
     schema = CollectionSchema(fields)
 
-    prepare_collection(name, dim, False, schema=schema)
+    prepare_collection(name, dim, True, schema=schema, num_partitions=64)
     c = Collection(name)
     if not c.has_index():
         c.create_index("embeddings", {"index_type": "FLAT", "params": {"metric_type": "L2"}})
