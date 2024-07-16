@@ -8,6 +8,7 @@ from generate_segment import generate_segments, SegmentDistribution, Unit
 
 def generate_n_segments(name: str, n: int = 20):
     prepare_collection(name, 768, False)
+    connections.connect()
     c = Collection(name)
     if not c.has_index():
         c.create_index("embeddings", {"index_type": "FLAT", "params": {"metric_type": "L2"}})
@@ -113,6 +114,5 @@ def test_case_generate_20_segments_no_del():
 
 if __name__ == "__main__":
     connections.connect()
-    #  test_case_generate_20_segments_del_20perc()
-    test_case_generate_20_segments_del_all()
     #  test_case_generate_20_segments_no_del()
+    test_case_generate_20_segments_del_all()

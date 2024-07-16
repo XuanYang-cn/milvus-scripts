@@ -4,19 +4,21 @@ import concurrent
 import threading
 import argparse
 import time
+from multiprocessing import get_context
+import multiprocessing as mp
 
 import numpy as np
 from pymilvus import (
     Collection,
     CollectionSchema,
-    connections,
+    #  connections,
     DataType,
     FieldSchema,
     utility,
 )
 
-
 def delete(name: str, expr: str):
+    from pymilvus import connections
     connections.connect()
     c = Collection(name)
 
@@ -32,7 +34,8 @@ def delete(name: str, expr: str):
 
 
 def prepare_collection(name: str, dim: int, recreate_if_exist: bool=False, schema: CollectionSchema=None, **kwargs):
-    connections.connect()
+    from pymilvus import connections
+    connections.connect(**kwargs)
 
     def create():
         fields = [
@@ -50,6 +53,7 @@ def prepare_collection(name: str, dim: int, recreate_if_exist: bool=False, schem
     elif recreate_if_exist is True:
         utility.drop_collection(name)
         create()
+    connections.disconnect("default")
 
 class MilvusMultiThreadingInsert:
     def __init__(self, collection_name: str, total_count: int, num_per_batch: int, dim: int):
@@ -64,6 +68,7 @@ class MilvusMultiThreadingInsert:
         self.batchs = list(range(batch_count))
 
     def connect(self, uri: str):
+        from pymilvus import connections
         connections.connect(uri=uri)
 
     def get_thread_local_collection(self):
@@ -97,19 +102,71 @@ class MilvusMultiThreadingInsert:
         print(f"Inserted num_entities: {self.total_count}. \
                 Actual num_entites: {self.get_thread_local_collection().num_entities}")
 
+class MilvusUploader:
+    client = None
+    upload_params = {}
+    collection: Collection = None
+    distance: str = None
+
+    @classmethod
+    def get_mp_start_method(cls):
+        return "spawn"
+        #  return "forkserver" if "forkserver" in mp.get_all_start_methods() else "spawn"
+
+    @classmethod
+    def init_client(cls, kwargs:dict):
+        from pymilvus import connections
+        cls.client = connections.connect(**kwargs)
+        cls.collection = Collection("bench")
+        print("connected")
+
+    @classmethod
+    def upload_batch(cls, number: int):
+        rng = np.random.default_rng(seed=number)
+        num_per_batch = 5000
+        entities = [
+            list(range(num_per_batch*number, num_per_batch*(number+1))),
+            rng.random(num_per_batch).tolist(),
+            rng.random((num_per_batch, 768)),
+        ]
+
+        print(f"No.{number:2}: Start inserting entities")
+        try:
+            ret = cls.collection.insert(entities)
+        except exception as e:
+            print("error", e)
+
+        print(f"Inserted {ret.insert_count} records")
+
+
+class MilvusMultiProcessing(MilvusUploader):
+    def __init__(self, **connection_params):
+        self.connection_params = connection_params
+
+    def upload(self):
+        self.init_client(self.connection_params)
+        print("connected")
+
+        ctx = get_context(self.__class__.get_mp_start_method())
+        with ctx.Pool(
+            processes=1,
+            initializer=self.__class__.init_client,
+            initargs=(self.connection_params,),
+        ) as pool:
+            for res in pool.imap(self.__class__._upload_batch, range(1000000//5000)):
+                print("OK")
+
+
+    @classmethod
+    def _upload_batch(cls, number):
+        return cls.upload_batch(number)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-c", "--collection", type=str, required=True, help="collection name")
-    parser.add_argument("-d", "--dim", type=int, default=128, help="dimension of the vectors")
+    parser.add_argument("-d", "--dim", type=int, default=768, help="dimension of the vectors")
     parser.add_argument("-n", "--new", action="store_true", help="Whether to create a new collection or use the existing one")
 
     flags = parser.parse_args()
-    uri = "http://localhost:19530"
-
-    prepare_collection(flags.collection, flags.dim, recreate_if_exist=flags.new)
-
-    mp_insert = MilvusMultiThreadingInsert(flags.collection, 100_000, 5000, flags.dim)
-    mp_insert.connect(uri)
-    mp_insert.run()
-
-    delete()
+    #  TODO
