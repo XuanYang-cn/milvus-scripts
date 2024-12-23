@@ -1,9 +1,9 @@
-from pymilvus import connections, Collection
+from pymilvus import Collection, connections
+
+from generate_segment import SegmentDistribution, generate_segments
 
 # local
 from load_data import prepare_collection
-from generate_segment import generate_segments, SegmentDistribution
-
 
 if __name__ == "__main__":
 
@@ -19,9 +19,10 @@ if __name__ == "__main__":
         test_p = c.partition(test_partition_name)
 
     dist = [512, 512, 512, 512]
-    pks = generate_segments(SegmentDistribution(
-        collection_name=name,
-        partition_name=test_partition_name,
-        size_dist=dist))
+    pks = generate_segments(
+        SegmentDistribution(
+            collection_name=name, partition_name=test_partition_name, size_dist=dist
+        )
+    )
 
     test_p.drop()
