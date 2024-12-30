@@ -1,5 +1,4 @@
-""" Giving a rate and target segment size, generating segment forever
-"""
+"""Giving a rate and target segment size, generating segment forever"""
 
 import logging
 
@@ -8,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from pymilvus import DataType, MilvusClient
 
 from common_func import Unit
-from generate_segment import generate_rows_by_size
+from generate_segment import generate_segment_by_partition_key
 from segment_distribution import Size
 
 logger = logging.getLogger("pymilvus")
@@ -28,17 +27,31 @@ class BuildRowsByRate(BaseModel):
         super().__init__(**kwargs)
         self.connection_config = kwargs
 
-    def run(self, drop_old: bool = True):
+    def run(self, size: Size, drop_old: bool = True):
         self.prep_collection(drop_old)
-        self.insert_work()
+        self.insert_work(size)
 
-    def insert_work(self):
+    def load_one_segment_for_all_partitionkey(self, size: Size):
         c = MilvusClient(**self.connection_config)
-        target_size = Size(count=128, unit=Unit.MB)
+        for part_key_id in range(self.num_partitions):
+            for data in generate_segment_by_partition_key(
+                size.as_bytes(), self.cschema, part_key_id
+            ):
+                logger.info(f"Inserting {len(data)} rows for partition_key={part_key_id}")
+                c.insert(self.collection_name, data)
+            logger.info(f"Flush {self.collection_name} for partition_key={part_key_id}")
+            c.flush(self.collection_name)
 
-        for data in generate_rows_by_size(target_size.as_bytes(), self.cschema):
-            logger.info(f"Inserting {len(data)} rows")
-            c.insert(self.collection_name, data)
+    def insert_work(self, size: Size):
+        self.load_one_segment_for_all_partitionkey(size)
+        self.load_one_segment_for_all_partitionkey(size)
+
+    def delete_by_partition_key(self, partition_key: int):
+        c = MilvusClient(**self.connection_config)
+        expr = f"session_id == {partition_key}"
+
+        logger.info(f"Deleting {expr}")
+        c.delete(self.collection_name, filter=expr)
         c.flush(self.collection_name)
 
     def prep_collection(self, drp_old: bool):
@@ -71,4 +84,6 @@ class BuildRowsByRate(BaseModel):
 
 if __name__ == "__main__":
     runner = BuildRowsByRate()
-    runner.run(False)
+    size = Size(count=100, unit=Unit.MB)
+    runner.run(size, False)
+    #  runner.delete_by_partition_key(1)

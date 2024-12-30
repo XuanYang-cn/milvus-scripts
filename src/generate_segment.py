@@ -11,6 +11,7 @@ Notes:
 
 import logging
 import math
+import random
 from typing import Union
 
 import pymilvus
@@ -18,14 +19,16 @@ from pymilvus import Collection, Partition, connections, utility
 from tqdm import tqdm
 
 from common_func import estimate_count_by_size
-from data_utils import gen_coloumn_data, gen_rows
+from data_utils import gen_coloumn_data, gen_rows_by_partition_key
 from segment_distribution import SegmentDistribution
 
 logger = logging.getLogger("pymilvus")
 logger.setLevel(logging.INFO)
 
 
-def generate_rows_by_size(size: int, schema: pymilvus.CollectionSchema) -> list[dict]:
+def generate_segment_by_partition_key(
+    size: int, schema: pymilvus.CollectionSchema, partition_key: int
+) -> list[dict]:
     max_size = 5 * 1024 * 1024  # 5MB
     total_count = 0
 
@@ -35,14 +38,14 @@ def generate_rows_by_size(size: int, schema: pymilvus.CollectionSchema) -> list[
         tail = size - batch * max_size
 
         for _ in range(batch):
-            data = gen_rows(schema, max_count, total_count)
+            data = gen_rows_by_partition_key(schema, max_count, total_count, partition_key)
             total_count += max_count
             yield data
     else:
         tail = size
     if tail > 0:
         count = estimate_count_by_size(tail, schema)
-        data = gen_rows(schema, count, total_count)
+        data = gen_rows_by_partition_key(schema, count, total_count, partition_key)
         yield data
 
 

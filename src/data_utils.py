@@ -39,7 +39,9 @@ def gen_coloumn_data(schema: pymilvus.CollectionSchema, count: int) -> list[list
     return data
 
 
-def gen_one_row(schema: pymilvus.CollectionSchema, row_id: int) -> dict:
+def gen_one_row(
+    schema: pymilvus.CollectionSchema, row_id: int, partition_key: int | None = None
+) -> dict:
     rng = np.random.default_rng()
     data = {}
     for fs in schema.fields:
@@ -47,7 +49,7 @@ def gen_one_row(schema: pymilvus.CollectionSchema, row_id: int) -> dict:
             if fs.is_primary and not fs.auto_id:
                 data[fs.name] = uuid.uuid1().int >> 65
             if fs.is_partition_key:
-                data[fs.name] = row_id
+                data[fs.name] = row_id if partition_key is None else partition_key
 
         elif fs.dtype == DataType.VARCHAR:
             if fs.is_primary and not fs.auto_id:
@@ -69,3 +71,9 @@ def gen_one_row(schema: pymilvus.CollectionSchema, row_id: int) -> dict:
 
 def gen_rows(schema: pymilvus.CollectionSchema, count: int, start_id: int) -> list[dict]:
     return [gen_one_row(schema, start_id + i) for i in range(count)]
+
+
+def gen_rows_by_partition_key(
+    schema: pymilvus.CollectionSchema, count: int, start_id: int, partition_key: int | None = None
+) -> list[dict]:
+    return [gen_one_row(schema, start_id + i, partition_key) for i in range(count)]
