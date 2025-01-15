@@ -69,11 +69,7 @@ def gen_one_row(
     return data
 
 
-def gen_rows(schema: pymilvus.CollectionSchema, count: int, start_id: int) -> list[dict]:
-    return [gen_one_row(schema, start_id + i) for i in range(count)]
-
-
-def gen_rows_by_partition_key(
+def gen_rows(
     schema: pymilvus.CollectionSchema, count: int, start_id: int, partition_key: int | None = None
 ) -> list[dict]:
     return [gen_one_row(schema, start_id + i, partition_key) for i in range(count)]

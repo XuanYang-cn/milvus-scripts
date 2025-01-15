@@ -11,23 +11,22 @@ Notes:
 
 import logging
 import math
-import random
 from typing import Union
 
 import pymilvus
 from pymilvus import Collection, Partition, connections, utility
 from tqdm import tqdm
 
-from common_func import estimate_count_by_size
-from data_utils import gen_coloumn_data, gen_rows_by_partition_key
-from segment_distribution import SegmentDistribution
+from .common_func import estimate_count_by_size
+from .data_utils import gen_coloumn_data, gen_rows
+from .segment_distribution import SegmentDistribution
 
 logger = logging.getLogger("pymilvus")
 logger.setLevel(logging.INFO)
 
 
-def generate_segment_by_partition_key(
-    size: int, schema: pymilvus.CollectionSchema, partition_key: int
+def generate_segment_by_size(
+    size: int, schema: pymilvus.CollectionSchema, partition_key: int | None = None
 ) -> list[dict]:
     max_size = 5 * 1024 * 1024  # 5MB
     total_count = 0
@@ -38,17 +37,18 @@ def generate_segment_by_partition_key(
         tail = size - batch * max_size
 
         for _ in range(batch):
-            data = gen_rows_by_partition_key(schema, max_count, total_count, partition_key)
+            data = gen_rows(schema, max_count, total_count, partition_key)
             total_count += max_count
             yield data
     else:
         tail = size
     if tail > 0:
         count = estimate_count_by_size(tail, schema)
-        data = gen_rows_by_partition_key(schema, count, total_count, partition_key)
+        data = gen_rows(schema, count, total_count, partition_key)
         yield data
 
 
+# TODO: remove
 def generate_segments(dist: SegmentDistribution) -> list[int | str]:
     if not utility.has_collection(dist.collection_name):
         msg = f"Collection {dist.collection_name} does not exist"
@@ -80,7 +80,7 @@ def generate_one_segment(
             data = gen_coloumn_data(schema, count)
             rt = c.insert(data)
             logger.info(
-                f"inserted {max_size * (i+1)}/{size}Bytes entities in batch 5MB, nun rows: {count}"
+                f"inserted {max_size * (i + 1)}/{size}Bytes entities in batch 5MB, nun rows: {count}"
             )
             pks.extend(rt.primary_keys)
             total_count += count
@@ -91,12 +91,16 @@ def generate_one_segment(
         count = estimate_count_by_size(tail, schema)
         data = gen_coloumn_data(schema, count)
         c.insert(data)
-        logger.info(f"inserted entities size: {tail}Bytes, {tail/1024/1024}MB, nun rows: {count}")
+        logger.info(
+            f"inserted entities size: {tail}Bytes, {tail / 1024 / 1024}MB, nun rows: {count}"
+        )
         pks.extend(rt.primary_keys)
         total_count += count
 
     c.flush()
-    logger.info(f"One segment num rows: {c.num_entities}, size: {size}Bytes, {size/1024/1024}MB")
+    logger.info(
+        f"One segment num rows: {c.num_entities}, size: {size}Bytes, {size / 1024 / 1024}MB"
+    )
     return pks
 
 
@@ -124,7 +128,7 @@ def stream_insert(
         pks.append(rt.primary_keys)
         total_count += count
 
-    logger.info(f"Loaded num rows: {total_count}, size: {size:.2f}B, {size/1024/1024:.2f}MB")
+    logger.info(f"Loaded num rows: {total_count}, size: {size:.2f}B, {size / 1024 / 1024:.2f}MB")
     return pks
 
 

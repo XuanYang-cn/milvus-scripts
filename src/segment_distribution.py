@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from common_func import Unit
+from .common_func import Unit
 
 
 class Size(BaseModel):

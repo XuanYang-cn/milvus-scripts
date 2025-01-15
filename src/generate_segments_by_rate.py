@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from pymilvus import DataType, MilvusClient
 
 from common_func import Unit
-from generate_segment import generate_segment_by_partition_key
+from generate_segment import generate_segment_by_size
 from segment_distribution import Size
 
 logger = logging.getLogger("pymilvus")
@@ -34,9 +34,7 @@ class BuildRowsByRate(BaseModel):
     def load_one_segment_for_all_partitionkey(self, size: Size):
         c = MilvusClient(**self.connection_config)
         for part_key_id in range(self.num_partitions):
-            for data in generate_segment_by_partition_key(
-                size.as_bytes(), self.cschema, part_key_id
-            ):
+            for data in generate_segment_by_size(size.as_bytes(), self.cschema, part_key_id):
                 logger.info(f"Inserting {len(data)} rows for partition_key={part_key_id}")
                 c.insert(self.collection_name, data)
             logger.info(f"Flush {self.collection_name} for partition_key={part_key_id}")

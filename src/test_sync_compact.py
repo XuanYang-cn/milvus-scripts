@@ -52,7 +52,7 @@ def load_by_count_delete_n_per(
         f"Try to load {count} num rows in dim={dim} in batch {batch}, size ~= {size / 1024 / 1024 / 1024:.2f}GB"
     )
     for i in range(batch):
-        print(f"------------------------------ batch {i+1} -------------------------------")
+        print(f"------------------------------ batch {i + 1} -------------------------------")
         batch_count = count // batch
         batch_size = estimate_size_by_count(batch_count, schema)
         batch_pks = stream_insert(c, schema, batch_size)
@@ -87,7 +87,7 @@ def test_load_by_count_multiprocess(name: str, count: int = 10_000_000, **kwargs
         f"Try to load {count} num rows in dim={dim} in batch {batch}, size ~= {size / 1024 / 1024 / 1024:.2f}GB"
     )
     for i in range(batch):
-        print(f"------------------------------ batch {i+1} -------------------------------")
+        print(f"------------------------------ batch {i + 1} -------------------------------")
         batch_count = count // batch
         batch_size = estimate_size_by_count(batch_count, schema)
         batch_pks = stream_insert(c, schema, batch_size)
